@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Andy1314Chen/VocabSlim"
-Repository = "https://github.com/Andy1314Chen/VocabSlim.git"
+Homepage = "https://github.com/Andy1314Chen/vocab-slim"
+Repository = "https://github.com/Andy1314Chen/vocab-slim.git"
 
 [project.scripts]
 vocab-slim = "vocabslim.cli:main"
