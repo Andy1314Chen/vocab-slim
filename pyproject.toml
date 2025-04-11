@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vocab-slim"
+version = "0.1.0"
+description = "A package to reduce the size of Hugging Face models via Vocabulary Slimming"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Andy1314Chen", email = "chenzq@mail.ustc.edu.cn"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "datasets>=2.12.0",
+    "numpy>=1.24.0",
+    "tqdm>=4.65.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Andy1314Chen/VocabSlim"
+Repository = "https://github.com/Andy1314Chen/VocabSlim.git"
+
+[project.scripts]
+vocab-slim = "vocabslim.cli:main"
