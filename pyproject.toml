@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vocab-slim"
-version = "0.1.0"
+name = "vocabslim"
+version = "0.1.1"
 description = "A package to reduce the size of Hugging Face models via Vocabulary Slimming"
 readme = "README.md"
 requires-python = ">=3.7"
