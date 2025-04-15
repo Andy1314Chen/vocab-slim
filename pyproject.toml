@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vocabslim"
-version = "0.1.1"
+version = "0.1.3"
 description = "A package to reduce the size of Hugging Face models via Vocabulary Slimming"
 readme = "README.md"
 requires-python = ">=3.7"

@@ -24,7 +24,13 @@ class VocabSlim:
         device (str, optional): Device to use, "auto" for auto-detect
     """
 
-    def __init__(self, model_name_or_path, save_path, dataset_config=None, target_vocab_size=None, new_tokenizer_name_or_path=None, device="auto") -> None:
+    def __init__(self,
+                 model_name_or_path,
+                 save_path,
+                 dataset_config=None,
+                 target_vocab_size=None,
+                 new_tokenizer_name_or_path=None,
+                 device="auto") -> None:
         self.logger = logging.getLogger(__name__)
         self.logger.info("Initializing VocabSlim...")
 
@@ -32,6 +38,7 @@ class VocabSlim:
         self.logger.info(f"Using device: {self.device}")
 
         os.makedirs(save_path, exist_ok=True)
+        self.model_name_or_path = model_name_or_path
         self.save_path = save_path
         self.dataset_config = dataset_config
 
@@ -41,6 +48,10 @@ class VocabSlim:
                 device_map=self.device if self.device == "cuda" else None
             ).to(self.device)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+
+            self.old_params = self._calc_params(self.model)
+            self.logger.info(
+                f"Total params of original model: {self.old_params/1e6:.2f}M")
         except Exception as e:
             self.logger.error(f"Failed to load model or tokenizer: {e}")
             raise
@@ -116,39 +127,46 @@ class VocabSlim:
         """
         return sum(p.numel() for p in model.parameters())
 
-    def _update_embedding(self, model, new2old_token_id):
+    def _update_embedding(self, new2old_token_id, model_embed_tokens, model_lm_head, model_lm_head_bias=None):
         """Update embedding weights and biases for the new model"""
+        dtype = self.model.config.torch_dtype
         for token_id, old_token_id in new2old_token_id.items():
-            if isinstance(old_token_id, list):
+            if isinstance(old_token_id, list) and len(old_token_id) >= 1:
                 old_token_ids = torch.tensor(
                     old_token_id, device=self.model.device)
-                model.model.embed_tokens.weight.data[token_id] = self.model.model.embed_tokens.weight.data[old_token_ids].mean(
-                    dim=0)
-                model.lm_head.weight.data[token_id] = self.model.lm_head.weight.data[old_token_ids].mean(
-                    dim=0)
+                self.model.model.embed_tokens.weight.data[token_id] = model_embed_tokens[old_token_ids].mean(
+                    dim=0, dtype=dtype)
+                self.model.lm_head.weight.data[token_id] = model_lm_head[old_token_ids].mean(
+                    dim=0, dtype=dtype)
 
                 if self.model.lm_head.bias is not None:
-                    model.lm_head.bias.data[token_id] = self.model.lm_head.bias.data[old_token_ids].mean(
-                    )
+                    self.model.lm_head.bias.data[token_id] = model_lm_head_bias[old_token_ids].mean(
+                        dtype=dtype)
+            elif isinstance(old_token_id, list):
+                self.model.model.embed_tokens.weight.data[token_id] = torch.randn_like(
+                    model_embed_tokens[0], dtype=dtype)
+                self.model.lm_head.weight.data[token_id] = torch.randn_like(
+                    model_lm_head[0], dtype=dtype)
+                if self.model.lm_head.bias is not None:
+                    self.model.lm_head.bias.data[token_id] = torch.randn_like(
+                        model_lm_head_bias[0], dtype=dtype)
             else:
-                model.model.embed_tokens.weight.data[token_id] = self.model.model.embed_tokens.weight.data[old_token_id]
-                model.lm_head.weight.data[token_id] = self.model.lm_head.weight.data[old_token_id]
+                self.model.model.embed_tokens.weight.data[token_id] = model_embed_tokens[old_token_id]
+                self.model.lm_head.weight.data[token_id] = model_lm_head[old_token_id]
                 if self.model.lm_head.bias is not None:
-                    model.lm_head.bias.data[token_id] = self.model.lm_head.bias.data[old_token_id]
-
-        return model
+                    self.model.lm_head.bias.data[token_id] = model_lm_head_bias[old_token_id]
 
     def prune(self):
         """Execute vocabulary slimming operation"""
         new2old_token_id = self._build_token_mapping()
 
-        old_params = self._calc_params(self.model)
-        self.logger.info(
-            f"Total params of original model: {old_params/1e6:.2f}M")
+        # print("old model: ", self.model)
 
-        new_model = self._create_new_model(new2old_token_id)
-        self._log_compression_stats(old_params, new_model)
-        self._save_models(new_model)
+        self._create_new_model(new2old_token_id)
+        self._log_compression_stats(self.old_params)
+        self._save_models()
+
+        # print("new model: ", self.model)
 
     def _build_token_mapping(self):
         """Build mapping between new and old token IDs"""
@@ -159,6 +177,8 @@ class VocabSlim:
         for token, token_id in tqdm(new_vocab.items(), desc="Building token mapping"):
             if token not in old_vocab:
                 token_decoded = self.new_tokenizer.decode([token_id])
+                if len(token_decoded) < 1:
+                    continue
                 new2old_token_id[token_id] = self.tokenizer(
                     token_decoded).input_ids
             else:
@@ -169,44 +189,56 @@ class VocabSlim:
     def _create_new_model(self, new2old_token_id):
         """Create and configure new model with reduced vocabulary"""
         vocab_size = len(self.new_tokenizer)
-        new_model = copy.deepcopy(self.model)
-        new_model.resize_token_embeddings(vocab_size)
+        model_embed_tokens = copy.deepcopy(
+            self.model.model.embed_tokens.weight.data)
+        if self.model.model.embed_tokens.weight.data is self.model.lm_head.weight.data:
+            model_lm_head = model_embed_tokens
+        else:
+            model_lm_head = copy.deepcopy(self.model.lm_head.weight.data)
+
+        model_lm_head_bias = None
+        if self.model.lm_head.bias is not None:
+            model_lm_head_bias = copy.deepcopy(self.model.lm_head.bias.data)
+
+        self.model.resize_token_embeddings(vocab_size)
 
         with torch.no_grad():
-            new_model = self._update_embedding(new_model, new2old_token_id)
+            self._update_embedding(
+                new2old_token_id, model_embed_tokens, model_lm_head, model_lm_head_bias)
 
-        self._update_model_config(new_model, vocab_size)
-        return new_model
+        self._update_model_config(vocab_size)
 
-    def _update_model_config(self, model, vocab_size):
+    def _update_model_config(self, vocab_size):
         """Update model configuration with new vocabulary size"""
-        bos_token_id = self.new_tokenizer.bos_token_id or vocab_size
-        eos_token_id = self.new_tokenizer.eos_token_id or vocab_size + 2
-        pad_token_id = self.new_tokenizer.pad_token_id or vocab_size
 
-        model.config.update({
+        eos_token_id = self.new_tokenizer.eos_token_id if self.new_tokenizer.eos_token_id is not None else vocab_size
+        pad_token_id = self.new_tokenizer.pad_token_id if self.new_tokenizer.pad_token_id is not None else vocab_size
+        bos_token_id = self.new_tokenizer.bos_token_id if self.new_tokenizer.bos_token_id is not None else self.new_tokenizer.eos_token_id
+
+        self.model.config.update({
             "vocab_size": vocab_size,
             "bos_token_id": bos_token_id,
             "eos_token_id": eos_token_id
         })
 
-        model.generation_config.pad_token_id = pad_token_id
-        model.generation_config.bos_token_id = bos_token_id
-        model.generation_config.eos_token_id = eos_token_id
+        self.model.generation_config.pad_token_id = pad_token_id
+        self.model.generation_config.bos_token_id = bos_token_id
+        self.model.generation_config.eos_token_id = eos_token_id
 
-    def _save_models(self, model):
+    def _save_models(self):
         """Save model and tokenizer"""
         try:
-            model.save_pretrained(self.save_path)
+            self.model.to(torch.bfloat16)
+            self.model.save_pretrained(self.save_path)
             self.new_tokenizer.save_pretrained(self.save_path)
             self.logger.info(f"Model and tokenizer saved to {self.save_path}")
         except Exception as e:
             self.logger.error(f"Failed to save model or tokenizer: {e}")
             raise
 
-    def _log_compression_stats(self, old_params, new_model):
+    def _log_compression_stats(self, old_params):
         """Log compression statistics"""
-        new_params = self._calc_params(new_model)
+        new_params = self._calc_params(self.model)
         vocab_ratio = len(self.new_tokenizer) / len(self.tokenizer) * 100
         param_ratio = new_params / old_params * 100
 
@@ -224,19 +256,11 @@ class VocabSlim:
         """
 
         try:
-            old_output_text = self._generate_text(
-                self.model,
-                self.tokenizer,
-                text
-            )
+            new_output_text = self._generate_text(self.model_name_or_path,
+                                                  text)
 
-            new_model = AutoModelForCausalLM.from_pretrained(
-                self.save_path).to(self.device)
-            new_output_text = self._generate_text(
-                new_model,
-                self.new_tokenizer,
-                text
-            )
+            old_output_text = self._generate_text(self.model_name_or_path,
+                                                  text)
 
             self.logger.info("Comparison results:")
             self.logger.info(f"Original output: {old_output_text}")
@@ -246,10 +270,13 @@ class VocabSlim:
             self.logger.error(f"Error during model comparison: {e}")
             raise
 
-    def _generate_text(self, model, tokenizer, text):
+    def _generate_text(self, model_path, text):
         """Generate text using specified model and tokenizer"""
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_path).to(self.device)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-        input_ids = tokenizer(
+        input_ids = self.tokenizer(
             text, return_tensors="pt").input_ids.to(self.device)
-        output_ids = model.generate(input_ids, max_new_tokens=20)
-        return tokenizer.batch_decode(output_ids)
+        output_ids = self.model.generate(input_ids, max_new_tokens=20)
+        return self.tokenizer.batch_decode(output_ids)

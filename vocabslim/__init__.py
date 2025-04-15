@@ -1,4 +1,4 @@
-__version__ = "0.1.1"
+__version__ = "0.1.3"
 
 def __getattr__(name):
     if name == "VocabSlim":

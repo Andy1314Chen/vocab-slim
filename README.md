@@ -42,7 +42,7 @@ pip install -e .
 
 ### Command Line Interface
 ```bash
-vocab-slim --model_path Qwen/Qwen2.5-0.5B --vocab_size 32
+vocab-slim --model_name_or_path Qwen/Qwen2.5-0.5B --vocab_size 32000
 ```
 
 ### Python API
@@ -50,19 +50,19 @@ vocab-slim --model_path Qwen/Qwen2.5-0.5B --vocab_size 32
 from vocabslim import VocabSlim
 
 # load pretrained tokenizer and model, train new BPE tokenizer
-vocSlim = VocabSlim(model_path="Qwen/Qwen2.5-0.5B",
-                save_path=f"Qwen2.5-0.5B-Vocab-Slimed-32K",
-                dataset_config={"name": "wikitext",
+vocSlim = VocabSlim(model_name_or_path="Qwen/Qwen2.5-0.5B",
+                    save_path=f"Qwen2.5-0.5B-Vocab-Slimed-32K",
+                    dataset_config={"name": "wikitext",
                                 "config": "wikitext-103-raw-v1",
                                 "split": "train",
                                 "text_column": "text"},
-                target_vocab_size=32_000)
+                    target_vocab_size=32_000)
 
 # vocabulary slimming and adjust embedding weight
 vocSlim.prune()
 
 # compare outputs between original and slimmed models with test text
-vocSlim.check("Hello, world!")
+vocSlim.check("What is the capital of France?")
 
 # slimmed model and tokenizer are saved in save_path
 ```
