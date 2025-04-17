@@ -70,6 +70,8 @@ vocSlim.check("What is the capital of France?")
 
 ### Evaluation
 
+To evaluate the performance after vocabulary slimming, we used [lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) to compare on several common datasets.
+
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from lm_eval.models.huggingface import HFLM
@@ -81,18 +83,24 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 lm = HFLM(pretrained=model, tokenizer=tokenizer, batch_size=32)
 
-results = simple_evaluate(model=lm, tasks=["piqa", "hellaswag", "arc_challenge"])
+results = simple_evaluate(model=lm, tasks=["arc_challenge", "hellaswag", "piqa"])
 results = {key: value for key, value in results.items() if key == "results"}
 print("Accuracy:", results)
 ```
 
 ### Model Size Reduction
-| Model        | Vocabulary Size | #params | Model Size | Average Accuracy | Memory Useage |
-| ------------ | --------------- | ------- | ---------- | ---------------- | ------------- |
-| Qwen2.5-0.5B | 0.49B           | 0.36B   | 26.53%     | 0.49B            | 0.49B         |
-| Qwen2.5-0.5B | 0.49B           | 0.36B   | 26.53%     | 0.49B            | 0.49B         |
-| Qwen2.5-0.5B | 0.49B           | 0.36B   | 26.53%     | 0.49B            | 0.49B         |
-| Qwen2.5-0.5B | 0.49B           | 0.36B   | 26.53%     | 0.49B            | 0.49B         |
+| Model                      | Vocabulary Size | #params            | Accuracy(arc_challenge,hellaswag,piqa) | Model Size(GB) |
+| -------------------------- | --------------- | ------------------ | -------------------------------------- | -------------- |
+| Qwen2.5-0.5B               | 151,936         | 494.03M            | 0.2952,0.4062,0.7024                   | 0.94           |
+| Qwen2.5-0.5B-Slimed-32K    | 32,000          | 386.57M (-21.75%)  | 0.2688,0.3658,0.6099                   | 0.73           |
+| Qwen2.5-0.5B-Slimed-32K-FT | 32,000          | 386.57M (-21.75%)  | 0.2798,0.3915,0.6507                   | 0.73           |
+| SmolLM2-360M               | 49,152          | 361.82M            | 0.3652,0.4316,0.7214                   | 0.69           |
+| SmolLM2-360M-Slimed-32K    | 32,000          | 345.36M (-4.56%)   | 0.2824,0.2728,0.5120                   | 0.66           |
+| SmolLM2-360M-Slimed-32K-FT | 32,000          | 345.36M (-4.56%)   | 0.3370,0.4055,0.6610                   | 0.66           |
+| Llama-3.2-1B               | 128,256         | 1235.81M           | 0.3131,0.4772,0.7448                   | 2.40           |
+| Llama-3.2-1B-Slimed-32K    | 32,000          | 1038.68M (-15.95%) | 0.3020,0.4234,0.6453                   | 2.00           |
+| Llama-3.2-1B-Slimed-32K-FT | 32,000          | 1038.68M (-15.95%) | 0.3063,0.4603,0.6904                   | 2.00           |
+
 
 
 ## Limitations
