@@ -10,11 +10,11 @@ However, larger vocabularies come with significant drawbacks. For smaller LLMs d
 
 For instance, the Qwen2.5 series illustrates this challenge:
 
-| Model                                | Qwen2.5-0.5B | Qwen2.5-1.5B | Qwen2.5-3B | Qwen2.5-7B | Qwen2.5-14B | Qwen2.5-32B | Qwen2.5-72B |
-| ------------------------------------ | ------------ | ------------ | ---------- | ---------- | ----------- | ----------- | ----------- |
-| Number of Parameters                 | 0.49B        | 1.54B        | 3.09B      | 7.61B      | 14.7B       | 32.5B       | 72.7B       |
-| Number of Parameters (Non-Embedding) | 0.36B        | 1.31B        | 2.77B      | 6.53B      | 13.1B       | 31.0B       | 70.0B       |
-| Ratio (Embeding Parameters)          | 26.53%       | 14.93%       | 10.36%     | 14.19%     | 10.88%      | 4.61%       | 3.71%       |
+| Model                                | 0.5B   | 1.5B   | 3B     | 7B     | 14B    | 32B   | 72B   |
+| ------------------------------------ | ------ | ------ | ------ | ------ | ------ | ----- | ----- |
+| Number of Parameters                 | 0.49B  | 1.54B  | 3.09B  | 7.61B  | 14.7B  | 32.5B | 72.7B |
+| Number of Parameters (Non-Embedding) | 0.36B  | 1.31B  | 2.77B  | 6.53B  | 13.1B  | 31.0B | 70.0B |
+| Ratio (Embeding Parameters)          | 26.53% | 14.93% | 10.36% | 14.19% | 10.88% | 4.61% | 3.71% |
 
 
 Reducing the vocabulary can significantly shrink the model size and enhance memory efficiency for both inference and fine-tuning. This benefit is particularly pronounced when models are quantized, as most quantization methods avoid quantizing token embeddings and the language modeling head to preserve accuracy.
